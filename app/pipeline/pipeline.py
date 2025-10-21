@@ -168,9 +168,30 @@ class PDFProcessor:
         return processed
     
     def _upscale(self, images: List[Image.Image]) -> List[Image.Image]:
-        """이미지 업스케일 (Sprint 2에서 구현)"""
-        logger.warning("업스케일 기능은 Sprint 2에서 구현 예정")
-        return images
+        """이미지 업스케일"""
+        try:
+            from .upscale import Upscaler
+            
+            scale = self.options.get("upscale_scale", 2)
+            face_enhance = self.options.get("face_enhance", False)
+            
+            upscaler = Upscaler(
+                scale=scale,
+                face_enhance=face_enhance,
+            )
+            
+            results = upscaler.upscale_batch(
+                images,
+                progress_callback=lambda idx, total: logger.debug(
+                    f"업스케일 진행: {idx}/{total}"
+                ),
+            )
+            
+            return results
+        
+        except Exception as e:
+            logger.error(f"업스케일 실패, 원본 사용: {e}")
+            return images
     
     def _remove_watermark(self, images: List[Image.Image]) -> List[Image.Image]:
         """워터마크 제거 (Sprint 4에서 구현)"""
