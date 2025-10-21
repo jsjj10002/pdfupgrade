@@ -22,6 +22,52 @@ class PipelineError(Exception):
     pass
 
 
+class Processor:
+    """
+    PDF 처리 파이프라인 클래스 (간단한 이름)
+    
+    PDF 파일을 입력받아 업스케일, 워터마크 제거, OCR 등의
+    처리를 순차적으로 수행한다.
+    """
+    
+    def __init__(
+        self,
+        options: Optional[Dict] = None,
+        progress_callback: Optional[Callable[[str, float], None]] = None,
+    ):
+        """
+        Args:
+            options: 처리 옵션
+            progress_callback: 진행률 콜백 함수 (step: str, progress: float)
+        """
+        self.options = options or {}
+        self.progress_callback = progress_callback
+    
+    def run(
+        self,
+        pdf_path: Union[str, Path],
+        output_path: Union[str, Path],
+        progress_callback: Optional[Callable[[str, float], None]] = None,
+    ) -> Dict:
+        """
+        PDF 처리 실행
+        
+        Args:
+            pdf_path: 입력 PDF 경로
+            output_path: 출력 PDF 경로
+            progress_callback: 진행률 콜백 함수
+        
+        Returns:
+            처리 결과 딕셔너리
+        """
+        # PDFProcessor 사용
+        processor = PDFProcessor(
+            options=self.options,
+            progress_callback=progress_callback or self.progress_callback,
+        )
+        return processor.process_pdf(pdf_path, output_path)
+
+
 class PDFProcessor:
     """
     PDF 처리 파이프라인 클래스
@@ -194,9 +240,32 @@ class PDFProcessor:
             return images
     
     def _remove_watermark(self, images: List[Image.Image]) -> List[Image.Image]:
-        """워터마크 제거 (Sprint 4에서 구현)"""
-        logger.warning("워터마크 제거 기능은 Sprint 4에서 구현 예정")
-        return images
+        """워터마크 제거"""
+        try:
+            from .watermark import WatermarkRemover
+            
+            method = self.options.get("watermark_method", "auto")
+            detection_threshold = self.options.get("watermark_threshold", 0.8)
+            protect_text = self.options.get("watermark_protect_text", True)
+            
+            remover = WatermarkRemover(
+                method=method,
+                detection_threshold=detection_threshold,
+                protect_text=protect_text,
+            )
+            
+            results = remover.remove_batch(
+                images,
+                progress_callback=lambda idx, total: logger.debug(
+                    f"워터마크 제거 진행: {idx}/{total}"
+                ),
+            )
+            
+            return results
+        
+        except Exception as e:
+            logger.error(f"워터마크 제거 실패, 원본 사용: {e}")
+            return images
     
     def _ocr(self, images: List[Image.Image]) -> List[List[dict]]:
         """OCR 텍스트 인식"""
