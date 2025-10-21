@@ -199,9 +199,41 @@ class PDFProcessor:
         return images
     
     def _ocr(self, images: List[Image.Image]) -> List[List[dict]]:
-        """OCR 텍스트 인식 (Sprint 3에서 구현)"""
-        logger.warning("OCR 기능은 Sprint 3에서 구현 예정")
-        return []
+        """OCR 텍스트 인식"""
+        try:
+            from .ocr import OCREngine
+            
+            engine = self.options.get("ocr_engine", "paddle")
+            langs = self.options.get("ocr_langs", "kor+eng")
+            use_angle_cls = self.options.get("ocr_use_angle_cls", True)
+            min_confidence = self.options.get("ocr_min_confidence", 0.5)
+            
+            ocr = OCREngine(
+                engine=engine,
+                langs=langs,
+                use_angle_cls=use_angle_cls,
+                min_confidence=min_confidence,
+            )
+            
+            results = ocr.recognize_batch(
+                images,
+                progress_callback=lambda idx, total: logger.debug(
+                    f"OCR 진행: {idx}/{total}"
+                ),
+            )
+            
+            # 통계 로깅
+            stats = ocr.get_statistics(results)
+            logger.info(
+                f"OCR 완료: {stats['total_texts']}개 텍스트, "
+                f"평균 신뢰도 {stats['avg_confidence']:.2f}"
+            )
+            
+            return results
+        
+        except Exception as e:
+            logger.error(f"OCR 실패, 텍스트 레이어 없이 진행: {e}")
+            return []
     
     def _build_pdf(
         self,
