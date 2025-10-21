@@ -1,0 +1,54 @@
+# CPU 전용 docker-compose 설정
+# GPU가 없는 환경에서 사용
+
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend.cpu
+    image: pdfupgrade-backend-cpu:latest
+    container_name: pdfupgrade-backend-cpu
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./storage:/app/storage
+      - ./logs:/app/logs
+      - ./app/models:/app/models
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - USE_GPU=false
+      - STORAGE_DIR=/app/storage
+      - MODELS_DIR=/app/models
+      - LOGS_DIR=/app/logs
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-250}
+      - UPSCALE_ENABLED=${UPSCALE_ENABLED:-false}
+      - WATERMARK_ENABLED=${WATERMARK_ENABLED:-true}
+      - OCR_ENABLED=${OCR_ENABLED:-true}
+      - ALLOWED_ORIGINS=http://localhost,http://localhost:3000,http://localhost:80
+    restart: unless-stopped
+    networks:
+      - pdfupgrade-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    image: pdfupgrade-frontend:latest
+    container_name: pdfupgrade-frontend
+    ports:
+      - "80:80"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - pdfupgrade-network
+
+networks:
+  pdfupgrade-network:
+    driver: bridge
+

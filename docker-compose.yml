@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # 백엔드 서버 (FastAPI)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: pdfupgrade-backend:latest
+    container_name: pdfupgrade-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./storage:/app/storage
+      - ./logs:/app/logs
+      - ./app/models:/app/models
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - USE_GPU=${USE_GPU:-auto}
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
+      - STORAGE_DIR=/app/storage
+      - MODELS_DIR=/app/models
+      - LOGS_DIR=/app/logs
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-250}
+      - UPSCALE_ENABLED=${UPSCALE_ENABLED:-true}
+      - WATERMARK_ENABLED=${WATERMARK_ENABLED:-true}
+      - OCR_ENABLED=${OCR_ENABLED:-true}
+      - ALLOWED_ORIGINS=http://localhost,http://localhost:3000,http://localhost:80
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - pdfupgrade-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 프론트엔드 (React + NGINX)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    image: pdfupgrade-frontend:latest
+    container_name: pdfupgrade-frontend
+    ports:
+      - "80:80"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - pdfupgrade-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+networks:
+  pdfupgrade-network:
+    driver: bridge
+
+volumes:
+  storage:
+  logs:
+  models:
+
